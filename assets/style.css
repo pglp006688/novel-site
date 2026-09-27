@@ -84,7 +84,7 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 }
 .book-card:hover { transform: translateY(-3px); border-color: var(--accent); }
 
-/* 封面 */
+/* 封面容器 */
 .book-card-cover {
   position: relative;
   aspect-ratio: 3 / 4;
@@ -94,13 +94,24 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
   overflow: hidden;
 }
 .book-card-cover img {
-  position: absolute; inset: 0; width: 100%; height: 100%;
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
   object-fit: cover;
 }
+
+/* 首字兜底（有封面时默认隐藏，图片失败才显示） */
 .cover-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
   font-family: var(--font-serif);
-  font-size: 44px; color: var(--accent); opacity: .85;
+  font-size: 44px;
+  color: var(--accent);
+  opacity: .85;
   line-height: 1;
+  user-select: none;
 }
 
 .book-card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
