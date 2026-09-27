@@ -5,7 +5,7 @@
   var DATA = (window.NOVEL_DATA && window.NOVEL_DATA.books) ? window.NOVEL_DATA : { books: [] };
   var BOOKS = DATA.books || [];
 
-  console.log('[Novel-Site] app.js v3 · 作品数:', BOOKS.length,
+  console.log('[Novel-Site] app.js · 作品数:', BOOKS.length,
               '· slugs:', BOOKS.map(function (b) { return b.slug; }));
 
   /* ---------- 工具 ---------- */
@@ -32,6 +32,19 @@
       }
     }
     return null;
+  }
+
+  /* ---------- 封面 HTML：有 cover 只渲染图片，加载失败才回退首字 ---------- */
+  function coverHTML(b, cls) {
+    var initial = esc(String(b.title || '书').slice(0, 1));
+    if (!b.cover) {
+      return '<div class="' + cls + '"><span class="cover-initial">' + initial + '</span></div>';
+    }
+    return '<div class="' + cls + '">' +
+      '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" loading="lazy" ' +
+      'onerror="this.style.display=\'none\';if(this.nextElementSibling)this.nextElementSibling.style.display=\'flex\';">' +
+      '<span class="cover-initial" style="display:none">' + initial + '</span>' +
+    '</div>';
   }
 
   /* ---------- 视图切换 ---------- */
@@ -69,16 +82,6 @@
     showView('home');
     document.title = 'Novel-Site · 书城';
     paintGrid();
-  }
-
-  /* 封面 HTML：有 cover 就渲染图片，下面垫首字作为兜底 */
-  function coverHTML(b, cls) {
-    var initial = esc(String(b.title || '书').slice(0, 1));
-    var img = b.cover
-      ? '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" loading="lazy" ' +
-        'onerror="this.remove()">'
-      : '';
-    return '<div class="' + cls + '">' + img + '<span class="cover-initial">' + initial + '</span></div>';
   }
 
   function paintGrid() {
@@ -145,11 +148,15 @@
     document.title = b.title + ' · Novel-Site';
 
     var cover = document.getElementById('detail-cover');
-    cover.innerHTML = b.cover
-      ? '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" ' +
-        'onerror="this.remove();this.parentNode.textContent=\'' +
-        esc(String(b.title).slice(0, 1)) + '\'">'
-      : esc(String(b.title).slice(0, 1));
+    if (b.cover) {
+      cover.innerHTML =
+        '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" ' +
+        'onerror="this.style.display=\'none\';if(this.nextElementSibling)this.nextElementSibling.style.display=\'flex\';">' +
+        '<span class="cover-initial" style="display:none">' +
+        esc(String(b.title).slice(0, 1)) + '</span>';
+    } else {
+      cover.textContent = String(b.title).slice(0, 1);
+    }
 
     document.getElementById('detail-title').textContent = b.title;
     document.getElementById('detail-byline').textContent =
