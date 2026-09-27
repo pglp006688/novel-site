@@ -72,41 +72,64 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 .toolbar input { flex: 1; min-width: 200px; }
 .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
 
-/* 书籍网格 —— 整卡可点 */
-.book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; }
+/* ===== 书籍网格：带封面 ===== */
+.book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 18px; }
 .book-card {
   position: relative;
   background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s;
   box-shadow: var(--shadow);
 }
 .book-card:hover { transform: translateY(-3px); border-color: var(--accent); }
-.book-card h3 { margin: 0; font-family: var(--font-serif); font-size: 18px; line-height: 1.4; }
+
+/* 封面 */
+.book-card-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-soft));
+  display: flex; align-items: center; justify-content: center;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.book-card-cover img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover;
+}
+.cover-initial {
+  font-family: var(--font-serif);
+  font-size: 44px; color: var(--accent); opacity: .85;
+  line-height: 1;
+}
+
+.book-card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.book-card h3 { margin: 0; font-family: var(--font-serif); font-size: 17px; line-height: 1.4; }
 .book-card h3 a { color: var(--text); }
 .book-card h3 a:hover { color: var(--accent); text-decoration: none; }
-/* 让书名链接覆盖整张卡片，实现整卡点击 */
+/* 让书名链接覆盖整张卡片，整卡可点 */
 .book-card h3 a::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: var(--radius);
 }
-.book-meta { font-size: 13px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 10px; }
-.book-desc { font-size: 13px; color: var(--text-dim); margin: 0; flex: 1;
+.book-meta { font-size: 12.5px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 10px; }
+.book-desc { font-size: 12.5px; color: var(--text-dim); margin: 0; flex: 1;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag { font-size: 11px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 .empty { text-align: center; color: var(--text-dim); padding: 60px 0; }
 
 /* 作品详情 */
 .book-header { display: flex; gap: 26px; flex-wrap: wrap; padding-bottom: 26px; border-bottom: 1px solid var(--border); margin-bottom: 26px; }
 .book-cover {
-  width: 150px; aspect-ratio: 3/4; border-radius: 10px; flex-shrink: 0;
+  width: 170px; aspect-ratio: 3/4; border-radius: 10px; flex-shrink: 0;
   background: linear-gradient(135deg, var(--accent-soft), var(--bg-soft));
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-serif); font-size: 34px; color: var(--accent);
+  font-family: var(--font-serif); font-size: 44px; color: var(--accent);
   border: 1px solid var(--border); overflow: hidden;
+  box-shadow: var(--shadow);
 }
 .book-cover img { width: 100%; height: 100%; object-fit: cover; }
 .book-info { flex: 1; min-width: 260px; }
@@ -203,13 +226,14 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
   .reader-side { position: static; max-height: 240px; }
   main { padding: 20px 16px 70px; }
   .book-header { gap: 18px; }
-  .book-cover { width: 110px; }
+  .book-cover { width: 120px; }
   .chapter-body { font-size: 17px; }
 }
 @media (max-width: 480px) {
   .book-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .book-card { padding: 14px; }
+  .book-card-body { padding: 12px; }
   .book-card h3 { font-size: 15px; }
   .book-desc { display: none; }
+  .cover-initial { font-size: 32px; }
   .chapter-nav { flex-direction: column; }
 }
