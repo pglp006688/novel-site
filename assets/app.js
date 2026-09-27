@@ -1,7 +1,4 @@
-/* ============================================================
- * Novel-Site · 前端应用
- * 数据来源：window.NOVEL_DATA（由 scripts/build.py 生成）
- * ============================================================ */
+
 (function () {
   'use strict';
 
@@ -14,8 +11,18 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
+  function safeDecode(s) {
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
+
   function findBook(slug) {
-    for (var i = 0; i < BOOKS.length; i++) if (BOOKS[i].slug === slug) return BOOKS[i];
+    if (!slug) return null;
+    var decoded = safeDecode(slug);
+    for (var i = 0; i < BOOKS.length; i++) {
+      var b = BOOKS[i];
+      if (b.slug === slug || b.slug === decoded) return b;
+    }
     return null;
   }
 
@@ -33,7 +40,8 @@
 
   function route() {
     var hash = location.hash.replace(/^#\/?/, '');
-    var parts = hash.split('/').filter(Boolean);
+    var parts = hash.split('/').filter(Boolean).map(safeDecode);
+
     if (parts[0] === 'book' && parts[1]) {
       renderBook(parts[1]);
     } else if (parts[0] === 'read' && parts[1] && parts[2]) {
@@ -86,7 +94,7 @@
 
     grid.innerHTML = list.map(function (b) {
       return '<article class="book-card">' +
-        '<h3><a href="#/book/' + esc(b.slug) + '">' + esc(b.title) + '</a></h3>' +
+        '<h3><a href="#/book/' + encodeURIComponent(b.slug) + '">' + esc(b.title) + '</a></h3>' +
         '<div class="book-meta"><span>' + esc(b.author) + '</span>' +
           '<span>' + (b.chapters || []).length + ' 章</span></div>' +
         '<p class="book-desc">' + esc(b.desc || '') + '</p>' +
@@ -125,12 +133,14 @@
     }).join('');
 
     document.getElementById('detail-start').onclick = function () {
-      location.hash = '#/read/' + b.slug + '/1';
+      if ((b.chapters || []).length) {
+        location.hash = '#/read/' + encodeURIComponent(b.slug) + '/1';
+      }
     };
     document.getElementById('detail-back').onclick = function () { location.hash = ''; };
 
     document.getElementById('detail-toc').innerHTML = (b.chapters || []).map(function (c) {
-      return '<a class="toc-item" href="#/read/' + b.slug + '/' + c.n + '">' +
+      return '<a class="toc-item" href="#/read/' + encodeURIComponent(b.slug) + '/' + c.n + '">' +
         '<span class="num">' + c.n + '</span>' +
         '<span class="name">' + esc(c.title) + '</span>' +
         '<span class="date">' + esc(c.date || '') + '</span>' +
@@ -156,20 +166,21 @@
     var b = findBook(slug);
     if (!b) { location.hash = ''; return; }
 
+    var chapters = b.chapters || [];
     var idx = -1;
-    for (var i = 0; i < (b.chapters || []).length; i++) {
-      if (b.chapters[i].n === n) { idx = i; break; }
+    for (var i = 0; i < chapters.length; i++) {
+      if (chapters[i].n === n) { idx = i; break; }
     }
-    if (idx < 0) { location.hash = '#/book/' + b.slug; return; }
+    if (idx < 0) { location.hash = '#/book/' + encodeURIComponent(b.slug); return; }
 
     showView('chapter');
-    var c = b.chapters[idx];
+    var c = chapters[idx];
     document.title = c.title + ' · ' + b.title;
 
     document.getElementById('side-book-title').textContent = b.title;
-    document.getElementById('side-toc').innerHTML = b.chapters.map(function (ch) {
+    document.getElementById('side-toc').innerHTML = chapters.map(function (ch) {
       return '<a class="toc-item' + (ch.n === n ? ' active' : '') +
-        '" href="#/read/' + b.slug + '/' + ch.n + '">' +
+        '" href="#/read/' + encodeURIComponent(b.slug) + '/' + ch.n + '">' +
         '<span class="num">' + ch.n + '</span>' +
         '<span class="name">' + esc(ch.title) + '</span>' +
       '</a>';
@@ -201,15 +212,15 @@
 
     applyReaderStyle();
 
-    var prev = b.chapters[idx - 1];
-    var next = b.chapters[idx + 1];
+    var prev = chapters[idx - 1];
+    var next = chapters[idx + 1];
     document.getElementById('chapter-nav').innerHTML =
       '<a class="' + (prev ? '' : 'disabled') + '" ' +
-        (prev ? 'href="#/read/' + b.slug + '/' + prev.n + '"' : '') + '>' +
+        (prev ? 'href="#/read/' + encodeURIComponent(b.slug) + '/' + prev.n + '"' : '') + '>' +
         '<span>← 上一章</span><b>' + (prev ? esc(prev.title) : '已经是第一章') + '</b>' +
       '</a>' +
       '<a class="next ' + (next ? '' : 'disabled') + '" ' +
-        (next ? 'href="#/read/' + b.slug + '/' + next.n + '"' : '') + '>' +
+        (next ? 'href="#/read/' + encodeURIComponent(b.slug) + '/' + next.n + '"' : '') + '>' +
         '<span>下一章 →</span><b>' + (next ? esc(next.title) : '已经是最新章') + '</b>' +
       '</a>';
 
