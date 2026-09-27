@@ -17,9 +17,10 @@ from datetime import datetime, timezone
 API = "https://api.github.com"
 USER_AGENT = "Novel-Site-Builder/1.0"
 
-# ------------------------------------------------------------------
-# 参数与环境
-# ------------------------------------------------------------------
+# 匹配 <!-- novel ... --> 元数据块
+META_RE = re.compile(r"<!--\s*novel\s*\n(.*?)\n\s*-->", re.DOTALL | re.IGNORECASE)
+
+
 def parse_args():
     p = argparse.ArgumentParser(description="Novel-Site 构建脚本")
     p.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""),
@@ -27,13 +28,10 @@ def parse_args():
     p.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""),
                    help="GitHub Token，默认取 $GITHUB_TOKEN")
     p.add_argument("--out", default=".", help="输出根目录，默认当前目录")
-    p.add_argument("--api", default=API, help="GitHub API 地址（GitHub Enterprise 可改）")
+    p.add_argument("--api", default=API, help="GitHub API 地址")
     return p.parse_args()
 
 
-# ------------------------------------------------------------------
-# HTTP
-# ------------------------------------------------------------------
 def gh_get(url, token):
     req = urllib.request.Request(url)
     req.add_header("Accept", "application/vnd.github+json")
@@ -41,18 +39,17 @@ def gh_get(url, token):
     if token:
         req.add_header("Authorization", "Bearer " + token)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8")), resp.headers
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def fetch_issues(api, repo, token):
-    """分页拉取全部 Issue（跳过 Pull Request）。"""
     issues = []
     page = 1
     while True:
         url = ("%s/repos/%s/issues?state=all&per_page=100&page=%d"
                "&sort=created&direction=asc" % (api, repo, page))
         try:
-            data, _ = gh_get(url, token)
+            data = gh_get(url, token)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 print("✗ 仓库不存在或无权限：%s" % repo, file=sys.stderr)
@@ -77,20 +74,16 @@ def fetch_issues(api, repo, token):
     return issues
 
 
-# ------------------------------------------------------------------
-# 工具
-# ------------------------------------------------------------------
 def slugify(text):
+    """纯 ASCII slug，避免 URL 编码问题。"""
     s = (text or "").strip().lower()
-    s = re.sub(r"[^\w\u4e00-\u9fff]+", "-", s, flags=re.UNICODE)
-    s = re.sub(r"-{2,}", "-", s).strip("-")
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
     if not s:
-        s = hashlib.md5((text or "book").encode("utf-8")).hexdigest()[:8]
+        s = "book-" + hashlib.md5((text or "book").encode("utf-8")).hexdigest()[:10]
     return s[:60]
 
 
 def parse_issue_title(title):
-    """解析 '作品名/作者/章节名'，返回 (book, author, chapter) 或 None。"""
     if not title:
         return None
     parts = [p.strip() for p in re.split(r"\s*/\s*", title)]
@@ -104,8 +97,33 @@ def parse_issue_title(title):
     return book, author, chapter
 
 
+def parse_novel_meta(body):
+    """
+    从正文中提取 <!-- novel ... --> 元数据块，返回 (meta_dict, cleaned_body)。
+    支持多行，每行格式：key: value
+    """
+    meta = {}
+    if not body:
+        return meta, ""
+
+    def repl(m):
+        for line in m.group(1).split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" in line:
+                k, v = line.split(":", 1)
+                k = k.strip().lower()
+                v = v.strip()
+                if k and v:
+                    meta[k] = v
+        return ""
+
+    cleaned = META_RE.sub(repl, body)
+    return meta, cleaned
+
+
 def iso_date(s):
-    """把 GitHub 的时间字符串转成 YYYY-MM-DD。"""
     if not s:
         return ""
     try:
@@ -115,12 +133,9 @@ def iso_date(s):
         return s[:10]
 
 
-# ------------------------------------------------------------------
-# Markdown → HTML
-# ------------------------------------------------------------------
 def render_markdown(text):
     try:
-        import markdown  # pip install markdown
+        import markdown
         md = markdown.Markdown(
             extensions=["extra", "sane_lists", "nl2br", "toc"],
             output_format="html5",
@@ -131,7 +146,7 @@ def render_markdown(text):
 
 
 def simple_markdown(text):
-
+    """无第三方依赖时的降级渲染。"""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     out = []
     in_code = False
@@ -153,10 +168,8 @@ def simple_markdown(text):
 
     def inline(s):
         s = html.escape(s, quote=False)
-        s = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)",
-                   r'<img src="\2" alt="\1">', s)
-        s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
-                   r'<a href="\2">\1</a>', s)
+        s = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", r'<img src="\2" alt="\1">', s)
+        s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', s)
         s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
         s = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", s)
         s = re.sub(r"__([^_]+)__", r"<strong>\1</strong>", s)
@@ -241,9 +254,6 @@ def simple_markdown(text):
     return "\n".join(out)
 
 
-# ------------------------------------------------------------------
-# 主流程
-# ------------------------------------------------------------------
 def main():
     args = parse_args()
 
@@ -253,7 +263,6 @@ def main():
         sys.exit(1)
 
     out_root = os.path.abspath(args.out)
-    chapters_dir = os.path.join(out_root, "chapters")
 
     print("→ 仓库：%s" % args.repo)
     print("→ 输出：%s" % out_root)
@@ -262,6 +271,14 @@ def main():
     issues = fetch_issues(args.api, args.repo, args.token)
     print("  共 %d 条 Issue" % len(issues))
 
+    chapters_dir = os.path.join(out_root, "chapters")
+    if os.path.isdir(chapters_dir):
+        shutil.rmtree(chapters_dir)
+    os.makedirs(chapters_dir, exist_ok=True)
+
+    # ----------------------------------------------------------
+    # 第一遍：初始化作品，收集 meta（封面 / 简介 / 标签）
+    # ----------------------------------------------------------
     books = {}
     skipped = 0
 
@@ -270,31 +287,53 @@ def main():
         if not parsed:
             skipped += 1
             continue
-        book_name, author, chapter_name = parsed
-
+        book_name, author, _ = parsed
         slug = slugify(book_name)
-        book = books.setdefault(slug, {
-            "slug": slug,
-            "title": book_name,
-            "author": author,
-            "desc": "",
-            "tags": [],
-            "cover": "",
-            "updated": "",
-            "_first_created": it.get("created_at", ""),
-            "chapters": [],
-        })
 
-        # 简介：取该作品第一条 Issue 正文的前 80 字
+        if slug not in books:
+            books[slug] = {
+                "slug": slug,
+                "title": book_name,
+                "author": author,
+                "desc": "",
+                "tags": [],
+                "cover": "",
+                "updated": "",
+                "chapters": [],
+            }
+
+        b = books[slug]
+        meta, _ = parse_novel_meta(it.get("body") or "")
+
+        if meta.get("cover") and not b["cover"]:
+            b["cover"] = meta["cover"]
+        if meta.get("intro") and not b["desc"]:
+            b["desc"] = meta["intro"]
+        if not b["tags"]:
+            b["tags"] = [lb.get("name", "") for lb in (it.get("labels") or []) if lb.get("name")]
+
+    # ----------------------------------------------------------
+    # 第二遍：填充章节，生成 HTML
+    # ----------------------------------------------------------
+    for it in issues:
+        parsed = parse_issue_title(it.get("title", ""))
+        if not parsed:
+            continue
+        book_name, author, chapter_name = parsed
+        slug = slugify(book_name)
+        book = books.get(slug)
+        if not book:
+            continue
+
+        body_raw = it.get("body") or ""
+        _, cleaned_body = parse_novel_meta(body_raw)
+
+        # 自动简介：仅在用户没有写 intro 时使用
         if not book["desc"]:
-            body_plain = re.sub(r"[#*`>\-\[\]()!]", "", it.get("body") or "")
-            body_plain = re.sub(r"\s+", " ", body_plain).strip()
-            if body_plain:
-                book["desc"] = body_plain[:80] + ("…" if len(body_plain) > 80 else "")
-
-        # 标签：Issue 的 label
-        if not book["tags"]:
-            book["tags"] = [lb.get("name", "") for lb in (it.get("labels") or []) if lb.get("name")]
+            plain = re.sub(r"[#*`>\-\[\]()!]", "", cleaned_body)
+            plain = re.sub(r"\s+", " ", plain).strip()
+            if plain:
+                book["desc"] = plain[:80] + ("…" if len(plain) > 80 else "")
 
         date = iso_date(it.get("created_at", ""))
         n = len(book["chapters"]) + 1
@@ -309,45 +348,20 @@ def main():
             "url": it.get("html_url", ""),
         })
 
-        body_html = render_markdown(it.get("body") or "")
         target = os.path.join(out_root, rel_file)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as f:
-            f.write(body_html)
+            f.write(render_markdown(cleaned_body))
 
         if date > book["updated"]:
             book["updated"] = date
 
-    # 清理旧章节文件
-    if os.path.isdir(chapters_dir):
-        shutil.rmtree(chapters_dir)
-    for slug, book in books.items():
-        for ch in book["chapters"]:
-            pass
-
-
-    for it in issues:
-        parsed = parse_issue_title(it.get("title", ""))
-        if not parsed:
-            continue
-        book_name = parsed[0]
-        slug = slugify(book_name)
-        book = books.get(slug)
-        if not book:
-            continue
-        for ch in book["chapters"]:
-            if ch.get("issue") == it.get("number"):
-                target = os.path.join(out_root, ch["file"])
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                with open(target, "w", encoding="utf-8") as f:
-                    f.write(render_markdown(it.get("body") or ""))
-                break
-
-    # 排序输出
+    # ----------------------------------------------------------
+    # 输出
+    # ----------------------------------------------------------
     book_list = []
     for slug in sorted(books.keys()):
         b = books[slug]
-        b.pop("_first_created", None)
         b["chapters"].sort(key=lambda c: c["n"])
         book_list.append(b)
 
@@ -367,7 +381,9 @@ def main():
         f.write(";\n")
 
     total_ch = sum(len(b["chapters"]) for b in book_list)
-    print("  作品 %d 部 / 章节 %d 章" % (len(book_list), total_ch))
+    with_cover = sum(1 for b in book_list if b["cover"])
+    print("  作品 %d 部 / 章节 %d 章 / 自定义封面 %d 部"
+          % (len(book_list), total_ch, with_cover))
     if skipped:
         print("  跳过 %d 条不符合「作品名/作者/章节名」的 Issue" % skipped)
     print("✓ 构建完成：%s" % data_path)
