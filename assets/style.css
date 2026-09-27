@@ -72,9 +72,10 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 .toolbar input { flex: 1; min-width: 200px; }
 .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
 
-/* 书籍网格 */
+/* 书籍网格 —— 整卡可点 */
 .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; }
 .book-card {
+  position: relative;
   background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 18px; display: flex; flex-direction: column; gap: 10px;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s;
@@ -84,6 +85,13 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 .book-card h3 { margin: 0; font-family: var(--font-serif); font-size: 18px; line-height: 1.4; }
 .book-card h3 a { color: var(--text); }
 .book-card h3 a:hover { color: var(--accent); text-decoration: none; }
+/* 让书名链接覆盖整张卡片，实现整卡点击 */
+.book-card h3 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+}
 .book-meta { font-size: 13px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 10px; }
 .book-desc { font-size: 13px; color: var(--text-dim); margin: 0; flex: 1;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
