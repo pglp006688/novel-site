@@ -5,23 +5,31 @@
   var DATA = (window.NOVEL_DATA && window.NOVEL_DATA.books) ? window.NOVEL_DATA : { books: [] };
   var BOOKS = DATA.books || [];
 
+  console.log('[Novel-Site] app.js v3 · 作品数:', BOOKS.length,
+              '· slugs:', BOOKS.map(function (b) { return b.slug; }));
+
   /* ---------- 工具 ---------- */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-
   function safeDecode(s) {
     try { return decodeURIComponent(s); } catch (e) { return s; }
   }
-
   function findBook(slug) {
     if (!slug) return null;
     var decoded = safeDecode(slug);
+    var candidates = [slug, decoded];
     for (var i = 0; i < BOOKS.length; i++) {
       var b = BOOKS[i];
-      if (b.slug === slug || b.slug === decoded) return b;
+      for (var j = 0; j < candidates.length; j++) {
+        var c = candidates[j];
+        if (!c) continue;
+        if (b.slug === c) return b;
+        if (b.title === c) return b;
+        if (b.slug && String(b.slug).toLowerCase() === String(c).toLowerCase()) return b;
+      }
     }
     return null;
   }
@@ -63,6 +71,16 @@
     paintGrid();
   }
 
+  /* 封面 HTML：有 cover 就渲染图片，下面垫首字作为兜底 */
+  function coverHTML(b, cls) {
+    var initial = esc(String(b.title || '书').slice(0, 1));
+    var img = b.cover
+      ? '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" loading="lazy" ' +
+        'onerror="this.remove()">'
+      : '';
+    return '<div class="' + cls + '">' + img + '<span class="cover-initial">' + initial + '</span></div>';
+  }
+
   function paintGrid() {
     var q = (filterInput.value || '').trim().toLowerCase();
     var list = BOOKS.slice();
@@ -93,14 +111,20 @@
     emptyTip.style.display = 'none';
 
     grid.innerHTML = list.map(function (b) {
+      var url = '#/book/' + encodeURIComponent(b.slug);
       return '<article class="book-card">' +
-        '<h3><a href="#/book/' + encodeURIComponent(b.slug) + '">' + esc(b.title) + '</a></h3>' +
-        '<div class="book-meta"><span>' + esc(b.author) + '</span>' +
-          '<span>' + (b.chapters || []).length + ' 章</span></div>' +
-        '<p class="book-desc">' + esc(b.desc || '') + '</p>' +
-        '<div class="tag-row">' + (b.tags || []).map(function (t) {
-          return '<span class="tag">' + esc(t) + '</span>';
-        }).join('') + '</div>' +
+        coverHTML(b, 'book-card-cover') +
+        '<div class="book-card-body">' +
+          '<h3><a href="' + url + '">' + esc(b.title) + '</a></h3>' +
+          '<div class="book-meta">' +
+            '<span>' + esc(b.author) + '</span>' +
+            '<span>' + (b.chapters || []).length + ' 章</span>' +
+          '</div>' +
+          '<p class="book-desc">' + esc(b.desc || '（暂无简介）') + '</p>' +
+          '<div class="tag-row">' + (b.tags || []).map(function (t) {
+            return '<span class="tag">' + esc(t) + '</span>';
+          }).join('') + '</div>' +
+        '</div>' +
       '</article>';
     }).join('');
   }
@@ -111,16 +135,21 @@
   /* ---------- 作品详情 ---------- */
   function renderBook(slug) {
     var b = findBook(slug);
-    if (!b) { location.hash = ''; return; }
+    if (!b) {
+      console.warn('[Novel-Site] 未找到作品。请求 slug =', JSON.stringify(slug),
+                   '现有 slugs =', BOOKS.map(function (x) { return x.slug; }));
+      location.hash = '';
+      return;
+    }
     showView('book');
     document.title = b.title + ' · Novel-Site';
 
     var cover = document.getElementById('detail-cover');
-    if (b.cover) {
-      cover.innerHTML = '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '">';
-    } else {
-      cover.textContent = String(b.title).slice(0, 1);
-    }
+    cover.innerHTML = b.cover
+      ? '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" ' +
+        'onerror="this.remove();this.parentNode.textContent=\'' +
+        esc(String(b.title).slice(0, 1)) + '\'">'
+      : esc(String(b.title).slice(0, 1));
 
     document.getElementById('detail-title').textContent = b.title;
     document.getElementById('detail-byline').textContent =
