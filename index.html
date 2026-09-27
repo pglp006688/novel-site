@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novel-Site · 书城</title>
+<meta name="description" content="在 GitHub Issues 上写作，由 Actions 自动构建的静态小说网。">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#"><span class="brand-mark">📖</span><span>Novel-Site</span></a>
+    <nav class="topnav">
+      <a href="#/">书架</a>
+      <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
+      <button id="theme-toggle" title="切换主题" aria-label="切换主题">🌓</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- 书城首页 -->
+  <section id="view-home">
+    <div class="hero">
+      <h1>Novel-Site</h1>
+      <p>在 GitHub Issues 上写作，自动构建的静态小说站</p>
+      <div class="stats">
+        <span>共 <b id="stat-books">0</b> 部作品</span>
+        <span>·</span>
+        <span><b id="stat-chapters">0</b> 个章节</span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="筛选作品名 / 作者 / 标签…">
+      <select id="sort">
+        <option value="updated">最近更新</option>
+        <option value="chapters">章节最多</option>
+        <option value="title">书名排序</option>
+      </select>
+    </div>
+
+    <div class="book-grid" id="book-grid"></div>
+    <div class="empty" id="empty-tip" style="display:none">没有找到匹配的作品</div>
+  </section>
+
+  <!-- 作品详情 -->
+  <section id="view-book" style="display:none">
+    <div class="book-header">
+      <div class="book-cover" id="detail-cover">书</div>
+      <div class="book-info">
+        <h1 id="detail-title"></h1>
+        <div class="byline" id="detail-byline"></div>
+        <p class="desc" id="detail-desc"></p>
+        <div class="tag-row" id="detail-tags" style="margin-bottom:16px"></div>
+        <button class="btn" id="detail-start">开始阅读</button>
+        <button class="btn ghost" id="detail-back" style="margin-left:8px">返回书架</button>
+      </div>
+    </div>
+    <h3 style="font-family:var(--font-serif);margin:0 0 14px">目录</h3>
+    <div class="toc" id="detail-toc"></div>
+  </section>
+
+  <!-- 章节阅读 -->
+  <section id="view-chapter" style="display:none">
+    <div class="reader-layout">
+      <aside class="reader-side">
+        <h4 id="side-book-title">目录</h4>
+        <div id="side-toc"></div>
+      </aside>
+      <article>
+        <div class="chapter-head">
+          <h1 id="chapter-title"></h1>
+          <div class="meta" id="chapter-meta"></div>
+        </div>
+        <div class="chapter-body" id="chapter-body"></div>
+        <nav class="chapter-nav" id="chapter-nav"></nav>
+      </article>
+    </div>
+    <div class="reader-tools">
+      <button id="font-plus" title="增大字号">A+</button>
+      <button id="font-minus" title="减小字号">A−</button>
+      <button id="to-top" title="回到顶部">↑</button>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>Novel-Site · 由 GitHub Issues 驱动 · 用 Actions 构建</p>
+</footer>
+
+<script src="data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
