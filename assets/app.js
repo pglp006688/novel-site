@@ -1,22 +1,20 @@
-
 (function () {
   'use strict';
 
   var DATA = (window.NOVEL_DATA && window.NOVEL_DATA.books) ? window.NOVEL_DATA : { books: [] };
   var BOOKS = DATA.books || [];
+  var REPO = DATA.repo || '';
 
-  console.log('[Novel-Site] app.js · 作品数:', BOOKS.length,
-              '· slugs:', BOOKS.map(function (b) { return b.slug; }));
-
-  /* ---------- 工具 ---------- */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
   function safeDecode(s) {
     try { return decodeURIComponent(s); } catch (e) { return s; }
   }
+
   function findBook(slug) {
     if (!slug) return null;
     var decoded = safeDecode(slug);
@@ -34,7 +32,6 @@
     return null;
   }
 
-  /* ---------- 封面 HTML：有 cover 只渲染图片，加载失败才回退首字 ---------- */
   function coverHTML(b, cls) {
     var initial = esc(String(b.title || '书').slice(0, 1));
     if (!b.cover) {
@@ -47,7 +44,6 @@
     '</div>';
   }
 
-  /* ---------- 视图切换 ---------- */
   var viewHome = document.getElementById('view-home');
   var viewBook = document.getElementById('view-book');
   var viewChapter = document.getElementById('view-chapter');
@@ -72,7 +68,6 @@
     }
   }
 
-  /* ---------- 首页 ---------- */
   var grid = document.getElementById('book-grid');
   var emptyTip = document.getElementById('empty-tip');
   var filterInput = document.getElementById('filter');
@@ -135,15 +130,9 @@
   filterInput.addEventListener('input', paintGrid);
   sortSelect.addEventListener('change', paintGrid);
 
-  /* ---------- 作品详情 ---------- */
   function renderBook(slug) {
     var b = findBook(slug);
-    if (!b) {
-      console.warn('[Novel-Site] 未找到作品。请求 slug =', JSON.stringify(slug),
-                   '现有 slugs =', BOOKS.map(function (x) { return x.slug; }));
-      location.hash = '';
-      return;
-    }
+    if (!b) { location.hash = ''; return; }
     showView('book');
     document.title = b.title + ' · Novel-Site';
 
@@ -184,7 +173,6 @@
     }).join('');
   }
 
-  /* ---------- 章节阅读 ---------- */
   var readerState = { fontSize: 18, lineHeight: 2 };
   try {
     var saved = JSON.parse(localStorage.getItem('ns-reader') || 'null');
@@ -260,6 +248,8 @@
         '<span>下一章 →</span><b>' + (next ? esc(next.title) : '已经是最新章') + '</b>' +
       '</a>';
 
+    loadComments(b, n);
+
     try {
       localStorage.setItem('ns-last', JSON.stringify({
         slug: b.slug, n: n, title: c.title, book: b.title
@@ -267,7 +257,83 @@
     } catch (e) {}
   }
 
-  /* ---------- 阅读器控件 ---------- */
+  function loadComments(book, n) {
+    var container = document.getElementById('comments');
+    if (!container) return;
+    container.innerHTML =
+      '<h3 class="comments-title">评论</h3>' +
+      '<p class="comments-loading">加载中…</p>';
+
+    var url = 'talk/' + encodeURIComponent(book.slug) + '/' + n + '.json';
+    fetch(url, { cache: 'no-cache' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        renderComments(container, book, n, data.comments || []);
+      })
+      .catch(function () {
+        renderComments(container, book, n, []);
+      });
+  }
+
+  function renderComments(container, book, n, comments) {
+    var html = '';
+    html += '<h3 class="comments-title">评论 <span class="comments-count">' +
+      comments.length + '</span></h3>';
+
+    html += '<div class="comment-form">' +
+      '<textarea id="comment-input" placeholder="写下你的评论…"></textarea>' +
+      '<button id="comment-submit" class="btn">提交评论</button>' +
+      '<p class="comment-hint">评论通过 GitHub Issue 提交，构建完成后显示。</p>' +
+    '</div>';
+
+    if (!comments.length) {
+      html += '<p class="comments-empty">暂无评论，来写第一条吧。</p>';
+    } else {
+      html += '<div class="comment-list">';
+      comments.forEach(function (c) {
+        html += '<div class="comment">' +
+          '<div class="comment-head">' +
+            (c.avatar ? '<img class="comment-avatar" src="' + esc(c.avatar) + '" alt="">' : '') +
+            '<span class="comment-author">' + esc(c.author) + '</span>' +
+            '<span class="comment-date">' + esc(c.date) + '</span>' +
+          '</div>' +
+          '<div class="comment-body">' +
+            esc(c.body).replace(/\n/g, '<br>') +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+
+    var btn = document.getElementById('comment-submit');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        var input = document.getElementById('comment-input');
+        var text = (input.value || '').trim();
+        if (!text) {
+          alert('请先写点内容');
+          input.focus();
+          return;
+        }
+        if (!REPO) {
+          alert('未配置仓库，无法提交评论');
+          return;
+        }
+        var title = 'talk/' + book.title + '/' + n;
+        var url = 'https://github.com/' + REPO + '/issues/new' +
+          '?title=' + encodeURIComponent(title) +
+          '&body=' + encodeURIComponent(text) +
+          '&labels=' + encodeURIComponent('talk');
+        window.open(url, '_blank');
+      });
+    }
+  }
+
   document.getElementById('font-plus').addEventListener('click', function () {
     readerState.fontSize = Math.min(30, readerState.fontSize + 1);
     saveReader();
@@ -284,7 +350,6 @@
     applyReaderStyle();
   }
 
-  /* ---------- 键盘翻页 ---------- */
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toUpperCase();
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -298,7 +363,6 @@
     }
   });
 
-  /* ---------- 主题 ---------- */
   (function () {
     var root = document.documentElement;
     var t = null;
@@ -316,7 +380,6 @@
     });
   })();
 
-  /* ---------- 启动 ---------- */
   window.addEventListener('hashchange', route);
   route();
 })();
