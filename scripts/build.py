@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
 import argparse
 import hashlib
 import html
@@ -16,19 +13,16 @@ from datetime import datetime, timezone
 
 API = "https://api.github.com"
 USER_AGENT = "Novel-Site-Builder/1.0"
-
-# 匹配 <!-- novel ... --> 元数据块
 META_RE = re.compile(r"<!--\s*novel\s*\n(.*?)\n\s*-->", re.DOTALL | re.IGNORECASE)
+TALK_TITLE_RE = re.compile(r"^talk\s*/\s*(.+?)\s*/\s*(\d+)\s*$", re.IGNORECASE)
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Novel-Site 构建脚本")
-    p.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""),
-                   help="owner/repo，默认取 $GITHUB_REPOSITORY")
-    p.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""),
-                   help="GitHub Token，默认取 $GITHUB_TOKEN")
-    p.add_argument("--out", default=".", help="输出根目录，默认当前目录")
-    p.add_argument("--api", default=API, help="GitHub API 地址")
+    p = argparse.ArgumentParser()
+    p.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
+    p.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""))
+    p.add_argument("--out", default=".")
+    p.add_argument("--api", default=API)
     return p.parse_args()
 
 
@@ -51,17 +45,11 @@ def fetch_issues(api, repo, token):
         try:
             data = gh_get(url, token)
         except urllib.error.HTTPError as e:
-            if e.code == 404:
-                print("✗ 仓库不存在或无权限：%s" % repo, file=sys.stderr)
-            elif e.code == 403:
-                print("✗ API 限流或权限不足（可设置 GITHUB_TOKEN）", file=sys.stderr)
-            else:
-                print("✗ GitHub API 错误：%s" % e, file=sys.stderr)
+            print("HTTP error: %s" % e, file=sys.stderr)
             sys.exit(1)
         except urllib.error.URLError as e:
-            print("✗ 网络错误：%s" % e, file=sys.stderr)
+            print("Network error: %s" % e, file=sys.stderr)
             sys.exit(1)
-
         if not data:
             break
         for it in data:
@@ -75,7 +63,6 @@ def fetch_issues(api, repo, token):
 
 
 def slugify(text):
-    """纯 ASCII slug，避免 URL 编码问题。"""
     s = (text or "").strip().lower()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
     if not s:
@@ -98,10 +85,6 @@ def parse_issue_title(title):
 
 
 def parse_novel_meta(body):
-    """
-    从正文中提取 <!-- novel ... --> 元数据块，返回 (meta_dict, cleaned_body)。
-    支持多行，每行格式：key: value
-    """
     meta = {}
     if not body:
         return meta, ""
@@ -119,8 +102,7 @@ def parse_novel_meta(body):
                     meta[k] = v
         return ""
 
-    cleaned = META_RE.sub(repl, body)
-    return meta, cleaned
+    return meta, META_RE.sub(repl, body)
 
 
 def iso_date(s):
@@ -146,7 +128,6 @@ def render_markdown(text):
 
 
 def simple_markdown(text):
-    """无第三方依赖时的降级渲染。"""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     out = []
     in_code = False
@@ -258,27 +239,23 @@ def main():
     args = parse_args()
 
     if not args.repo or "/" not in args.repo:
-        print("✗ 缺少仓库信息。请设置 GITHUB_REPOSITORY=owner/repo 或使用 --repo",
-              file=sys.stderr)
+        print("Missing repo: set GITHUB_REPOSITORY or use --repo", file=sys.stderr)
         sys.exit(1)
 
     out_root = os.path.abspath(args.out)
 
-    print("→ 仓库：%s" % args.repo)
-    print("→ 输出：%s" % out_root)
-    print("→ 拉取 Issues ...")
+    print("Repo: %s" % args.repo)
+    print("Out: %s" % out_root)
+    print("Fetching issues ...")
 
     issues = fetch_issues(args.api, args.repo, args.token)
-    print("  共 %d 条 Issue" % len(issues))
+    print("  total: %d" % len(issues))
 
     chapters_dir = os.path.join(out_root, "chapters")
     if os.path.isdir(chapters_dir):
         shutil.rmtree(chapters_dir)
     os.makedirs(chapters_dir, exist_ok=True)
 
-    # ----------------------------------------------------------
-    # 第一遍：初始化作品，收集 meta（封面 / 简介 / 标签）
-    # ----------------------------------------------------------
     books = {}
     skipped = 0
 
@@ -312,9 +289,6 @@ def main():
         if not b["tags"]:
             b["tags"] = [lb.get("name", "") for lb in (it.get("labels") or []) if lb.get("name")]
 
-    # ----------------------------------------------------------
-    # 第二遍：填充章节，生成 HTML
-    # ----------------------------------------------------------
     for it in issues:
         parsed = parse_issue_title(it.get("title", ""))
         if not parsed:
@@ -328,7 +302,6 @@ def main():
         body_raw = it.get("body") or ""
         _, cleaned_body = parse_novel_meta(body_raw)
 
-        # 自动简介：仅在用户没有写 intro 时使用
         if not book["desc"]:
             plain = re.sub(r"[#*`>\-\[\]()!]", "", cleaned_body)
             plain = re.sub(r"\s+", " ", plain).strip()
@@ -356,9 +329,6 @@ def main():
         if date > book["updated"]:
             book["updated"] = date
 
-    # ----------------------------------------------------------
-    # 输出
-    # ----------------------------------------------------------
     book_list = []
     for slug in sorted(books.keys()):
         b = books[slug]
@@ -366,6 +336,43 @@ def main():
         book_list.append(b)
 
     book_list.sort(key=lambda b: b.get("updated", ""), reverse=True)
+
+    talks = {}
+    for it in issues:
+        labels = [lb.get("name", "").lower() for lb in (it.get("labels") or [])]
+        if "talk" not in labels:
+            continue
+        m = TALK_TITLE_RE.match(it.get("title", "") or "")
+        if not m:
+            continue
+        book_name = m.group(1).strip()
+        chapter_n = int(m.group(2))
+        slug = slugify(book_name)
+        key = "%s/%d" % (slug, chapter_n)
+        talks.setdefault(key, []).append({
+            "id": str(it.get("id", "")),
+            "author": ((it.get("user") or {}).get("login") or "匿名"),
+            "avatar": (it.get("user") or {}).get("avatar_url") or "",
+            "body": it.get("body") or "",
+            "date": iso_date(it.get("created_at", "")),
+            "url": it.get("html_url", ""),
+        })
+
+    talk_dir = os.path.join(out_root, "talk")
+    if os.path.isdir(talk_dir):
+        shutil.rmtree(talk_dir)
+    os.makedirs(talk_dir, exist_ok=True)
+
+    for key, comments in talks.items():
+        slug, n = key.split("/", 1)
+        target_dir = os.path.join(talk_dir, slug)
+        os.makedirs(target_dir, exist_ok=True)
+        with open(os.path.join(target_dir, n + ".json"), "w", encoding="utf-8") as f:
+            json.dump({
+                "slug": slug,
+                "chapter": int(n),
+                "comments": comments,
+            }, f, ensure_ascii=False, indent=2)
 
     data = {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -375,18 +382,17 @@ def main():
 
     data_path = os.path.join(out_root, "data.js")
     with open(data_path, "w", encoding="utf-8") as f:
-        f.write("/* 由 scripts/build.py 自动生成，请勿手动编辑 */\n")
         f.write("window.NOVEL_DATA = ")
         json.dump(data, f, ensure_ascii=False, indent=2)
         f.write(";\n")
 
     total_ch = sum(len(b["chapters"]) for b in book_list)
-    with_cover = sum(1 for b in book_list if b["cover"])
-    print("  作品 %d 部 / 章节 %d 章 / 自定义封面 %d 部"
-          % (len(book_list), total_ch, with_cover))
+    total_cm = sum(len(v) for v in talks.values())
+    print("  books: %d, chapters: %d, comments: %d"
+          % (len(book_list), total_ch, total_cm))
     if skipped:
-        print("  跳过 %d 条不符合「作品名/作者/章节名」的 Issue" % skipped)
-    print("✓ 构建完成：%s" % data_path)
+        print("  skipped: %d" % skipped)
+    print("Done.")
 
 
 if __name__ == "__main__":
