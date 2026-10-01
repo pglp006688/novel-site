@@ -1,0 +1,10 @@
+{
+  "tts": {
+    "enabled": true,
+    "api": "",
+    "voice": "zh-CN",
+    "rate": 1,
+    "pitch": 1,
+    "headers": {}
+  }
+}
