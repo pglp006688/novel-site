@@ -188,15 +188,6 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 .chapter-nav a.disabled { opacity: .35; pointer-events: none; }
 .chapter-nav .next { text-align: right; align-items: flex-end; }
 
-.comments {
-  margin-top: 48px; padding-top: 28px;
-  border-top: 1px solid var(--border);
-  max-width: 42rem;
-}
-.comments[hidden] { display: none; }
-.comments .utterances { max-width: 100%; }
-.comments-hint { color: var(--text-dim); font-size: 14px; }
-
 .reader-tools {
   position: fixed; right: 22px; bottom: 26px; z-index: 40;
   display: flex; flex-direction: column; gap: 8px;
@@ -205,14 +196,10 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
   width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border);
   background: var(--bg-elev); color: var(--text); cursor: pointer; font-size: 16px;
   box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center;
-  transition: transform .15s, background .15s, border-color .15s;
+  transition: transform .15s;
 }
 .reader-tools button:hover { transform: scale(1.08); border-color: var(--accent); }
-.reader-tools button.active {
-  background: var(--accent); color: #fff; border-color: var(--accent);
-}
 #tts-toggle { font-size: 18px; }
-#comment-toggle { font-size: 18px; }
 
 .site-footer {
   border-top: 1px solid var(--border); padding: 26px 20px; text-align: center;
