@@ -25,14 +25,35 @@
   --shadow: 0 1px 3px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+  transition: background .25s;
+}
 body {
-  margin: 0; font-family: var(--font-sans); background: var(--bg); color: var(--text);
-  line-height: 1.7; transition: background .25s, color .25s;
+  margin: 0;
+  font-family: var(--font-sans);
+  background: transparent;
+  color: var(--text);
+  line-height: 1.7;
+  transition: color .25s;
 }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 img { max-width: 100%; display: block; }
+
+#wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  display: none;
+  transition: opacity .8s ease, background-image .8s ease, filter .3s;
+}
 
 .topbar {
   position: sticky; top: 0; z-index: 50;
