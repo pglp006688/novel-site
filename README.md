@@ -24,9 +24,8 @@
 
 ## 快速开始
 
-### 1. Fork 本仓库
+### 1. 通过模板创建仓库 (https://github.com/pglp006688/novel-site/generate)
 
-### （可选) Close 我的测试 lssue
 
 ### 2. 开启 GitHub Pages
 
