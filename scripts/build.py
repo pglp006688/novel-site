@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 API = "https://api.github.com"
 USER_AGENT = "Novel-Site-Builder/1.0"
 META_RE = re.compile(r"<!--\s*novel\s*\n(.*?)\n\s*-->", re.DOTALL | re.IGNORECASE)
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 CHAPTER_RE = re.compile(
     r"^\s*("
@@ -122,6 +123,27 @@ def parse_novel_meta(body):
         return ""
 
     return meta, META_RE.sub(repl, body)
+
+
+def parse_txt_meta(text):
+    meta = {}
+
+    def repl(m):
+        for line in m.group(1).split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" in line:
+                k, v = line.split(":", 1)
+                k = k.strip().lower()
+                v = v.strip()
+                if k and v:
+                    meta[k] = v
+        return ""
+
+    cleaned = META_RE.sub(repl, text)
+    cleaned = HTML_COMMENT_RE.sub("", cleaned)
+    return meta, cleaned
 
 
 def iso_date(s):
@@ -320,21 +342,33 @@ def build_novels(out_root):
         base = fname[:-4]
 
         if "-" in base:
-            title, author = base.split("-", 1)
-            title, author = title.strip(), author.strip()
+            f_title, f_author = base.split("-", 1)
+            f_title, f_author = f_title.strip(), f_author.strip()
         else:
-            title, author = base.strip(), "未知"
+            f_title, f_author = base.strip(), "未知"
+
+        try:
+            raw_text = read_text_file(path)
+        except Exception as e:
+            print("  skip %s: %s" % (fname, e))
+            continue
+
+        meta, text = parse_txt_meta(raw_text)
+
+        title = (meta.get("title") or f_title).strip()
+        author = (meta.get("author") or f_author).strip()
+        cover = (meta.get("cover") or "").strip()
+        intro = (meta.get("intro") or "").strip()
+        tags_str = (meta.get("tags") or "").strip()
 
         if not title:
             continue
 
-        slug = "txt-" + slugify(title)
+        tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else ["txt"]
+        if "txt" not in tags:
+            tags.append("txt")
 
-        try:
-            text = read_text_file(path)
-        except Exception as e:
-            print("  skip %s: %s" % (fname, e))
-            continue
+        slug = "txt-" + slugify(title)
 
         chapters = split_chapters(text)
         if not chapters:
@@ -361,17 +395,20 @@ def build_novels(out_root):
                 "source": "txt",
             })
 
-        first_body = chapters[0]["body"] if chapters else ""
-        plain = re.sub(r"\s+", " ", first_body).strip()
-        desc = plain[:80] + ("…" if len(plain) > 80 else "")
+        if intro:
+            desc = intro
+        else:
+            first_body = chapters[0]["body"] if chapters else ""
+            plain = re.sub(r"\s+", " ", first_body).strip()
+            desc = plain[:80] + ("…" if len(plain) > 80 else "")
 
         books.append({
             "slug": slug,
             "title": title,
             "author": author,
             "desc": desc,
-            "tags": ["txt"],
-            "cover": "",
+            "tags": tags,
+            "cover": cover,
             "updated": mtime,
             "chapters": ch_list,
         })
