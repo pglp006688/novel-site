@@ -7,7 +7,8 @@
   var CONFIG = {
     tts: { enabled: false, api: '', voice: 'zh-CN', rate: 1, pitch: 1, headers: {} },
     stats: { enabled: false },
-    txt: { enabled: false }
+    txt: { enabled: false },
+    wallpaper: { enabled: false, url: '', urls: [], opacity: 0.3, blur: 0, interval: 0 }
   };
 
   var ttsErrorShown = false;
@@ -286,6 +287,59 @@
     document.body.appendChild(script);
   }
 
+  var wallpaperTimer = null;
+  var wallpaperUrls = [];
+  var wallpaperIndex = 0;
+
+  function initWallpaper() {
+    var w = CONFIG.wallpaper || {};
+    if (!w.enabled) return;
+
+    var urls = [];
+    if (w.url && typeof w.url === 'string') urls.push(w.url);
+    if (Array.isArray(w.urls)) {
+      w.urls.forEach(function (u) {
+        if (u && typeof u === 'string' && urls.indexOf(u) < 0) urls.push(u);
+      });
+    }
+    if (!urls.length) {
+      console.warn('[Novel-Site] 壁纸已开启，但 url / urls 都是空的');
+      return;
+    }
+
+    var layer = document.getElementById('wallpaper');
+    if (!layer) return;
+
+    var opacity = (typeof w.opacity === 'number' && w.opacity >= 0 && w.opacity <= 1)
+      ? w.opacity : 0.3;
+    layer.style.opacity = String(opacity);
+
+    if (w.blur && typeof w.blur === 'number' && w.blur > 0) {
+      layer.style.filter = 'blur(' + w.blur + 'px)';
+    }
+
+    wallpaperUrls = urls;
+    wallpaperIndex = 0;
+
+    var probe = new Image();
+    probe.onload = function () {
+      layer.style.display = 'block';
+      layer.style.backgroundImage = 'url("' + wallpaperUrls[0].replace(/"/g, '\\"') + '")';
+
+      if (wallpaperUrls.length > 1 && w.interval && w.interval > 0) {
+        wallpaperTimer = setInterval(function () {
+          wallpaperIndex = (wallpaperIndex + 1) % wallpaperUrls.length;
+          layer.style.backgroundImage =
+            'url("' + wallpaperUrls[wallpaperIndex].replace(/"/g, '\\"') + '")';
+        }, w.interval * 1000);
+      }
+    };
+    probe.onerror = function () {
+      console.warn('[Novel-Site] 壁纸加载失败:', wallpaperUrls[0]);
+    };
+    probe.src = wallpaperUrls[0];
+  }
+
   var vHome = document.getElementById('view-home');
   var vBook = document.getElementById('view-book');
   var vChapter = document.getElementById('view-chapter');
@@ -519,6 +573,7 @@
       if (cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
       if (cfg.stats) CONFIG.stats = Object.assign(CONFIG.stats, cfg.stats);
       if (cfg.txt) CONFIG.txt = Object.assign(CONFIG.txt, cfg.txt);
+      if (cfg.wallpaper) CONFIG.wallpaper = Object.assign(CONFIG.wallpaper, cfg.wallpaper);
     })
     .catch(function () {})
     .then(loadNovels)
@@ -526,6 +581,7 @@
       mergeBooks((novelsData && novelsData.books) || []);
       initTtsUI();
       initStats();
+      initWallpaper();
       window.addEventListener('hashchange', route);
       route();
     });
