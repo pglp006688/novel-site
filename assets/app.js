@@ -6,7 +6,8 @@
 
   var CONFIG = {
     tts: { enabled: false, api: '', voice: 'zh-CN', rate: 1, pitch: 1, headers: {} },
-    stats: { enabled: false }
+    stats: { enabled: false },
+    txt: { enabled: false }
   };
 
   var ttsErrorShown = false;
@@ -495,6 +496,7 @@
   })();
 
   function loadNovels() {
+    if (!CONFIG.txt || !CONFIG.txt.enabled) return Promise.resolve({ books: [] });
     return fetch('novels/_out/data.json', { cache: 'no-cache' })
       .then(function (r) { return r.ok ? r.json() : { books: [] }; })
       .catch(function () { return { books: [] }; });
@@ -516,6 +518,7 @@
       if (!cfg) return;
       if (cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
       if (cfg.stats) CONFIG.stats = Object.assign(CONFIG.stats, cfg.stats);
+      if (cfg.txt) CONFIG.txt = Object.assign(CONFIG.txt, cfg.txt);
     })
     .catch(function () {})
     .then(loadNovels)
