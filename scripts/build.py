@@ -34,6 +34,17 @@ def parse_args():
     return p.parse_args()
 
 
+def load_config(path):
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print("  config.json 读取失败: %s" % e)
+        return {}
+
+
 def gh_get(url, token):
     req = urllib.request.Request(url)
     req.add_header("Accept", "application/vnd.github+json")
@@ -386,8 +397,12 @@ def main():
 
     out_root = os.path.abspath(args.out)
 
+    cfg = load_config(os.path.join(out_root, "config.json"))
+    txt_enabled = bool((cfg.get("txt") or {}).get("enabled", False))
+
     print("Repo: %s" % args.repo)
     print("Out: %s" % out_root)
+    print("TXT import: %s" % ("enabled" if txt_enabled else "disabled"))
     print("Fetching issues ...")
 
     issues = fetch_issues(args.api, args.repo, args.token)
@@ -479,8 +494,15 @@ def main():
 
     book_list.sort(key=lambda b: b.get("updated", ""), reverse=True)
 
-    print("Building novels from txt ...")
-    txt_books = build_novels(out_root)
+    txt_books = []
+    if txt_enabled:
+        print("Building novels from txt ...")
+        txt_books = build_novels(out_root)
+    else:
+        out_dir = os.path.join(out_root, "novels", "_out")
+        if os.path.isdir(out_dir):
+            shutil.rmtree(out_dir)
+        print("  novels: skipped (config.txt.enabled = false)")
 
     data = {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
