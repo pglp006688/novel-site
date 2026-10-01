@@ -9,5 +9,8 @@
   },
   "stats": {
     "enabled": true
+  },
+  "txt": {
+    "enabled": true
   }
 }
