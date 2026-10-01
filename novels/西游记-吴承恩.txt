@@ -1,3 +1,13 @@
+<!-- novel
+title: 西游记
+author: 吴承恩
+cover: https://vcg02.cfp.cn/creative/vcg/nowater800/new/VCG211505690676.jpg
+intro: 唐僧师徒西天取经降妖。素材源于网上
+tags: 西游记，古典名著，神魔小说
+-->
+
+
+
 第一章 灵根育孕源流出　心性修持大道生
 
 诗曰：
