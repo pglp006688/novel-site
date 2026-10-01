@@ -12,6 +12,7 @@
   <div class="topbar-inner">
     <a class="brand" href="#"><span class="brand-mark">📖</span><span>Novel-Site</span></a>
     <nav class="topnav">
+      <span id="online-badge" class="online-badge" style="display:none" title="当前在线"></span>
       <a href="#/">书架</a>
       <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
       <button id="theme-toggle" title="切换主题" aria-label="切换主题">🌓</button>
@@ -87,6 +88,8 @@
 <footer class="site-footer">
   <p>Novel-Site · 由 GitHub Issues 驱动 · 用 Actions 构建</p>
 </footer>
+
+<div id="toast-box"></div>
 
 <script src="data.js"></script>
 <script src="assets/app.js"></script>
