@@ -5,6 +5,8 @@
 写一条 Issue 就是更新一章，推送即发布，无需服务器、无需数据库。
 
 ![Build and Deploy](https://github.com/pglp006688/novel-site/actions/workflows/build.yml/badge.svg)
+
+[![Use this template](https://img.shields.io/badge/Use%20this-template-2ea44f?style=for-the-badge&logo=github)](https://github.com/pglp006688/novel-site/generate)
 ---
 
 ## 特性
