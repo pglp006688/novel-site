@@ -54,6 +54,14 @@ img { max-width: 100%; display: block; }
 }
 .topnav a:hover, .topnav button:hover { background: var(--bg-soft); color: var(--text); text-decoration: none; }
 
+.online-badge {
+  font-size: 12.5px; color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 10px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
 main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 .hero { text-align: center; padding: 28px 0 36px; }
 .hero h1 { font-family: var(--font-serif); font-size: clamp(28px, 5vw, 42px); margin: 0 0 12px; letter-spacing: .02em; }
@@ -206,6 +214,30 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
   color: var(--text-dim); font-size: 13px;
 }
 
+#toast-box {
+  position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
+  z-index: 100; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none; max-width: calc(100vw - 32px);
+}
+.toast {
+  padding: 12px 18px; border-radius: 10px;
+  background: var(--bg-elev); color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow); font-size: 14px; line-height: 1.6;
+  max-width: 480px; word-break: break-word;
+  pointer-events: auto;
+  animation: toast-in .25s ease;
+}
+.toast-warn { border-color: #d4a017; background: #fff8e5; color: #6b4d00; }
+.toast-error { border-color: #c0392b; background: #fdecea; color: #7a1f17; }
+[data-theme="dark"] .toast-warn { background: #2c2410; color: #f0d48a; }
+[data-theme="dark"] .toast-error { background: #2c1412; color: #f0a8a0; }
+.toast-hide { opacity: 0; transition: opacity .3s; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 860px) {
   .reader-layout { grid-template-columns: 1fr; }
   .reader-side { position: static; max-height: 240px; }
@@ -221,4 +253,6 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
   .book-desc { display: none; }
   .cover-initial { font-size: 32px; }
   .chapter-nav { flex-direction: column; }
+  .online-badge { display: none !important; }
+  .toast { font-size: 13px; padding: 10px 14px; }
 }
