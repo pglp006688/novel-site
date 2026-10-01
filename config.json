@@ -1,24 +1,35 @@
 {
   "tts": {
-    "enabled": true,                           # tts听书服务，false即关闭
+    "_comment": "tts 听书服务，enabled 改为 false 即关闭",
+    "_comment_api": "填远程 TTS API 地址则走远程；留空用浏览器内置语音",
+    "_comment_headers": "api 需要认证时填写，如 {\"Authorization\": \"Bearer sk-xxx\"}；不填则直接请求 api",
+    "enabled": true,
     "api": "",
     "voice": "zh-CN",
     "rate": 1,
     "pitch": 1,
-    "headers": {}                              #不填api key就直接请求api
+    "headers": {}
   },
   "stats": {
+    "_comment": "不蒜子访问统计，顶栏显示访客数与阅读量",
     "enabled": true
   },
   "txt": {
-    "enabled": true                              # 如果不需从novels导入txt，可改为false
+    "_comment": "从 novels/ 文件夹导入 txt 小说，不需要则改为 false",
+    "enabled": true
   },
   "wallpaper": {
-    "enabled": true,                             # 如无需壁纸插件，可false
-    "url": "assets/wallpaper.jpg",                                   # 单张轮播，可用assets/bg.jpg绝对路径
-    "urls": [],                                  # 多张轮播
+    "_comment": "自定义壁纸插件，不需要则改为 false",
+    "_comment_url": "单张壁纸，支持完整 URL 或仓库内相对路径，如 assets/wallpaper.jpg",
+    "_comment_urls": "多张壁纸轮播，和 url 可以同时使用",
+    "_comment_opacity": "透明度 0～1，越小越淡，推荐 0.2～0.4",
+    "_comment_blur": "模糊像素数，0 不模糊，推荐 0～8",
+    "_comment_interval": "轮播间隔秒数，0 表示不轮播",
+    "enabled": true,
+    "url": "assets/wallpaper.jpg",
+    "urls": [],
     "opacity": 0.3,
     "blur": 0,
-    "interval": 0                                # 轮播间隔秒数
+    "interval": 0
   }
 }
