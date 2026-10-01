@@ -188,6 +188,14 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 32px 20px 80px; }
 .chapter-nav a.disabled { opacity: .35; pointer-events: none; }
 .chapter-nav .next { text-align: right; align-items: flex-end; }
 
+.comments {
+  margin-top: 48px; padding-top: 28px;
+  border-top: 1px solid var(--border);
+  max-width: 42rem;
+}
+.comments .utterances { max-width: 100%; }
+.comments-hint { color: var(--text-dim); font-size: 14px; }
+
 .reader-tools {
   position: fixed; right: 22px; bottom: 26px; z-index: 40;
   display: flex; flex-direction: column; gap: 8px;
