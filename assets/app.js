@@ -15,6 +15,12 @@
     themeDark: 'github-dark'
   };
 
+  var commentsState = {
+    loaded: false,
+    key: '',
+    open: false
+  };
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -203,17 +209,54 @@
     });
   }
 
-  function loadUtterances(book, n) {
+  function updateCommentBtn() {
+    var btn = document.getElementById('comment-toggle');
+    if (!btn) return;
+    if (commentsState.open) {
+      btn.textContent = '✕';
+      btn.title = '收起评论';
+      btn.classList.add('active');
+    } else {
+      btn.textContent = '💬';
+      btn.title = '评论';
+      btn.classList.remove('active');
+    }
+  }
+
+  function toggleComments(book, n) {
     var box = document.getElementById('comments');
     if (!box) return;
-    box.innerHTML = '';
 
-    if (!UTTERANCES.repo) {
-      box.innerHTML = '<p class="comments-hint">未配置评论仓库。</p>';
+    var key = book.slug + '/' + n;
+
+    if (commentsState.open && commentsState.key === key) {
+      box.hidden = true;
+      commentsState.open = false;
+      updateCommentBtn();
       return;
     }
 
-    var title = 'Novel-Site · ' + book.title + ' · 第' + n + '章 ' + (book.chapters[n - 1] || {}).title;
+    box.hidden = false;
+    commentsState.open = true;
+    updateCommentBtn();
+
+    if (!UTTERANCES.repo) {
+      box.innerHTML = '<p class="comments-hint">未配置评论仓库（config.json → utterances.repo）。</p>';
+      return;
+    }
+
+    if (commentsState.loaded && commentsState.key === key) {
+      syncUtterancesTheme();
+      return;
+    }
+
+    commentsState.key = key;
+    commentsState.loaded = true;
+
+    box.innerHTML = '';
+
+    var title = 'Novel-Site · ' + book.title + ' · 第' + n + '章 ' +
+      ((book.chapters[n - 1] || {}).title || '');
 
     var theme = document.documentElement.getAttribute('data-theme') === 'dark'
       ? UTTERANCES.themeDark : UTTERANCES.theme;
@@ -226,18 +269,19 @@
     script.setAttribute('theme', theme);
     script.setAttribute('crossorigin', 'anonymous');
     script.async = true;
-    box.appendChild(script);
 
-    box.setAttribute('data-title', title);
-    box.setAttribute('data-url', location.origin + location.pathname +
-      '#/read/' + encodeURIComponent(book.slug) + '/' + n);
-
-    var original = window.utterances;
+    var prevUtterances = window.utterances;
     window.utterances = function (data) {
-      if (typeof original === 'function') original(data);
-      if (data && data.title) return { title: title };
+      if (typeof prevUtterances === 'function') {
+        try { prevUtterances(data); } catch (e) {}
+      }
+      if (data && data.title && data.title.indexOf('Novel-Site') === -1) {
+        return { title: title };
+      }
       return { title: title };
     };
+
+    box.appendChild(script);
   }
 
   function syncUtterancesTheme() {
@@ -247,6 +291,28 @@
       ? UTTERANCES.themeDark : UTTERANCES.theme;
     iframe.contentWindow.postMessage({ type: 'set-theme', theme: theme },
       'https://utteranc.es');
+  }
+
+  function resetComments() {
+    commentsState.loaded = false;
+    commentsState.key = '';
+    commentsState.open = false;
+    var box = document.getElementById('comments');
+    if (box) { box.hidden = true; box.innerHTML = ''; }
+    updateCommentBtn();
+  }
+
+  function initCommentBtn() {
+    var btn = document.getElementById('comment-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var h = location.hash.replace(/^#\/?/, '');
+      var p = h.split('/').filter(Boolean).map(safeDecode);
+      if (p[0] !== 'read' || !p[1] || !p[2]) return;
+      var b = findBook(p[1]);
+      if (!b) return;
+      toggleComments(b, parseInt(p[2], 10));
+    });
   }
 
   var vHome = document.getElementById('view-home');
@@ -274,6 +340,7 @@
   var sortSelect = document.getElementById('sort');
 
   function renderHome() {
+    resetComments();
     showView('home');
     document.title = 'Novel-Site · 书城';
     paintGrid();
@@ -319,6 +386,7 @@
   sortSelect.addEventListener('change', paintGrid);
 
   function renderBook(slug) {
+    resetComments();
     var b = findBook(slug);
     if (!b) { location.hash = ''; return; }
     showView('book');
@@ -366,6 +434,7 @@
 
   function renderChapter(slug, n) {
     TTS.stop();
+    resetComments();
 
     var b = findBook(slug);
     if (!b) { location.hash = ''; return; }
@@ -411,14 +480,13 @@
         '<span>下一章 →</span><b>' + (next ? esc(next.title) : '已经是最新章') + '</b></a>';
 
     updateTtsBtn();
+    updateCommentBtn();
 
     try {
       localStorage.setItem('ns-last', JSON.stringify({
         slug: b.slug, n: n, title: c.title, book: b.title
       }));
     } catch (e) {}
-
-    loadUtterances(b, n);
   }
 
   document.getElementById('font-plus').addEventListener('click', function () {
@@ -470,6 +538,7 @@
     .catch(function () {})
     .then(function () {
       initTtsUI();
+      initCommentBtn();
       window.addEventListener('hashchange', route);
       route();
     });
