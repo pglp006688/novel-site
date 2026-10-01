@@ -1,16 +1,24 @@
 {
   "tts": {
-    "enabled": true,
+    "enabled": true,                           # tts听书服务，false即关闭
     "api": "",
     "voice": "zh-CN",
     "rate": 1,
     "pitch": 1,
-    "headers": {}
+    "headers": {}                              #不填api key就直接请求api
   },
   "stats": {
     "enabled": true
   },
   "txt": {
-    "enabled": true
+    "enabled": true                              # 如果不需从novels导入txt，可改为false
+  },
+  "wallpaper": {
+    "enabled": true,                             # 如无需壁纸插件，可false
+    "url": "assets/wallpaper.jpg",                                   # 单张轮播，可用assets/bg.jpg绝对路径
+    "urls": [],                                  # 多张轮播
+    "opacity": 0.3,
+    "blur": 0,
+    "interval": 0                                # 轮播间隔秒数
   }
 }
