@@ -43,7 +43,6 @@
       '<span class="cover-initial" style="display:none">' + initial + '</span></div>';
   }
 
-  /* ---------- Toast ---------- */
   function showToast(msg, type) {
     var box = document.getElementById('toast-box');
     if (!box) return;
@@ -59,7 +58,6 @@
     }, 6000);
   }
 
-  /* ---------- TTS ---------- */
   var TTS = {
     queue: [],
     index: 0,
@@ -266,7 +264,6 @@
     });
   }
 
-  /* ---------- busuanzi 访问统计 ---------- */
   function initStats() {
     if (!CONFIG.stats || !CONFIG.stats.enabled) {
       var uv = document.getElementById('busuanzi_container_site_uv');
@@ -288,7 +285,6 @@
     document.body.appendChild(script);
   }
 
-  /* ---------- 视图 ---------- */
   var vHome = document.getElementById('view-home');
   var vBook = document.getElementById('view-book');
   var vChapter = document.getElementById('view-chapter');
@@ -498,6 +494,22 @@
     });
   })();
 
+  function loadNovels() {
+    return fetch('novels/_out/data.json', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : { books: [] }; })
+      .catch(function () { return { books: [] }; });
+  }
+
+  function mergeBooks(txtBooks) {
+    if (!txtBooks || !txtBooks.length) return;
+    var exist = {};
+    BOOKS.forEach(function (b) { exist[b.slug] = true; });
+    txtBooks.forEach(function (b) {
+      if (exist[b.slug]) return;
+      BOOKS.push(b);
+    });
+  }
+
   fetch('config.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (cfg) {
@@ -506,7 +518,9 @@
       if (cfg.stats) CONFIG.stats = Object.assign(CONFIG.stats, cfg.stats);
     })
     .catch(function () {})
-    .then(function () {
+    .then(loadNovels)
+    .then(function (novelsData) {
+      mergeBooks((novelsData && novelsData.books) || []);
       initTtsUI();
       initStats();
       window.addEventListener('hashchange', route);
