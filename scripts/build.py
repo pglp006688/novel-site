@@ -14,7 +14,15 @@ from datetime import datetime, timezone
 API = "https://api.github.com"
 USER_AGENT = "Novel-Site-Builder/1.0"
 META_RE = re.compile(r"<!--\s*novel\s*\n(.*?)\n\s*-->", re.DOTALL | re.IGNORECASE)
-TALK_TITLE_RE = re.compile(r"^talk\s*/\s*(.+?)\s*/\s*(\d+)\s*$", re.IGNORECASE)
+
+CHAPTER_RE = re.compile(
+    r"^\s*("
+    r"第\s*[0-9一二三四五六七八九十百千万零两]+\s*[章回节卷篇]"
+    r"|Chapter\s+\d+"
+    r"|序章|序言|序|楔子|引子|尾声|后记|番外"
+    r")[^\n]*$",
+    re.MULTILINE | re.IGNORECASE,
+)
 
 
 def parse_args():
@@ -235,6 +243,140 @@ def simple_markdown(text):
     return "\n".join(out)
 
 
+def read_text_file(path):
+    with open(path, "rb") as f:
+        raw = f.read()
+    for enc in ("utf-8-sig", "utf-8", "gb18030", "gbk", "big5"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def split_chapters(text):
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+    chapters = []
+    cur_title = None
+    cur_lines = []
+
+    def push():
+        if cur_title is None and not any(l.strip() for l in cur_lines):
+            return
+        chapters.append({
+            "title": (cur_title or "正文").strip(),
+            "body": "\n".join(cur_lines).strip(),
+        })
+
+    for line in lines:
+        if CHAPTER_RE.match(line):
+            push()
+            cur_title = line.strip()
+            cur_lines = []
+        else:
+            cur_lines.append(line)
+    push()
+
+    return [c for c in chapters if c["body"] or c["title"] != "正文"]
+
+
+def text_to_html(text):
+    paras = [p.strip() for p in text.split("\n") if p.strip()]
+    return "\n".join("<p>%s</p>" % html.escape(p) for p in paras)
+
+
+def build_novels(out_root):
+    novels_dir = os.path.join(out_root, "novels")
+    if not os.path.isdir(novels_dir):
+        return []
+
+    out_dir = os.path.join(novels_dir, "_out")
+    if os.path.isdir(out_dir):
+        shutil.rmtree(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    books = []
+    txts = sorted(
+        f for f in os.listdir(novels_dir)
+        if f.lower().endswith(".txt") and os.path.isfile(os.path.join(novels_dir, f))
+    )
+
+    print("  novels txt: %d" % len(txts))
+
+    for fname in txts:
+        path = os.path.join(novels_dir, fname)
+        base = fname[:-4]
+
+        if "-" in base:
+            title, author = base.split("-", 1)
+            title, author = title.strip(), author.strip()
+        else:
+            title, author = base.strip(), "未知"
+
+        if not title:
+            continue
+
+        slug = "txt-" + slugify(title)
+
+        try:
+            text = read_text_file(path)
+        except Exception as e:
+            print("  skip %s: %s" % (fname, e))
+            continue
+
+        chapters = split_chapters(text)
+        if not chapters:
+            print("  skip %s: 未解析到章节" % fname)
+            continue
+
+        mtime = datetime.fromtimestamp(
+            os.path.getmtime(path), tz=timezone.utc
+        ).strftime("%Y-%m-%d")
+
+        book_dir = os.path.join(out_dir, slug)
+        os.makedirs(book_dir, exist_ok=True)
+
+        ch_list = []
+        for n, ch in enumerate(chapters, 1):
+            rel_file = "novels/_out/%s/%d.html" % (slug, n)
+            with open(os.path.join(book_dir, "%d.html" % n), "w", encoding="utf-8") as f:
+                f.write(text_to_html(ch["body"]))
+            ch_list.append({
+                "n": n,
+                "title": ch["title"],
+                "date": mtime,
+                "file": rel_file,
+                "source": "txt",
+            })
+
+        first_body = chapters[0]["body"] if chapters else ""
+        plain = re.sub(r"\s+", " ", first_body).strip()
+        desc = plain[:80] + ("…" if len(plain) > 80 else "")
+
+        books.append({
+            "slug": slug,
+            "title": title,
+            "author": author,
+            "desc": desc,
+            "tags": ["txt"],
+            "cover": "",
+            "updated": mtime,
+            "chapters": ch_list,
+        })
+
+    data = {
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "books": books,
+    }
+
+    with open(os.path.join(out_dir, "data.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print("  novels parsed: %d" % len(books))
+    return books
+
+
 def main():
     args = parse_args()
 
@@ -337,42 +479,8 @@ def main():
 
     book_list.sort(key=lambda b: b.get("updated", ""), reverse=True)
 
-    talks = {}
-    for it in issues:
-        labels = [lb.get("name", "").lower() for lb in (it.get("labels") or [])]
-        if "talk" not in labels:
-            continue
-        m = TALK_TITLE_RE.match(it.get("title", "") or "")
-        if not m:
-            continue
-        book_name = m.group(1).strip()
-        chapter_n = int(m.group(2))
-        slug = slugify(book_name)
-        key = "%s/%d" % (slug, chapter_n)
-        talks.setdefault(key, []).append({
-            "id": str(it.get("id", "")),
-            "author": ((it.get("user") or {}).get("login") or "匿名"),
-            "avatar": (it.get("user") or {}).get("avatar_url") or "",
-            "body": it.get("body") or "",
-            "date": iso_date(it.get("created_at", "")),
-            "url": it.get("html_url", ""),
-        })
-
-    talk_dir = os.path.join(out_root, "talk")
-    if os.path.isdir(talk_dir):
-        shutil.rmtree(talk_dir)
-    os.makedirs(talk_dir, exist_ok=True)
-
-    for key, comments in talks.items():
-        slug, n = key.split("/", 1)
-        target_dir = os.path.join(talk_dir, slug)
-        os.makedirs(target_dir, exist_ok=True)
-        with open(os.path.join(target_dir, n + ".json"), "w", encoding="utf-8") as f:
-            json.dump({
-                "slug": slug,
-                "chapter": int(n),
-                "comments": comments,
-            }, f, ensure_ascii=False, indent=2)
+    print("Building novels from txt ...")
+    txt_books = build_novels(out_root)
 
     data = {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -387,9 +495,8 @@ def main():
         f.write(";\n")
 
     total_ch = sum(len(b["chapters"]) for b in book_list)
-    total_cm = sum(len(v) for v in talks.values())
-    print("  books: %d, chapters: %d, comments: %d"
-          % (len(book_list), total_ch, total_cm))
+    print("  issues books: %d, chapters: %d" % (len(book_list), total_ch))
+    print("  txt books: %d" % len(txt_books))
     if skipped:
         print("  skipped: %d" % skipped)
     print("Done.")
