@@ -27,7 +27,8 @@
     "_comment_interval": "轮播间隔秒数，0 表示不轮播",
     "enabled": true,
     "url": "assets/wallpaper.jpg",
-    "urls": [],
+    "urls": [assets/wallpaper.jpg
+    assets/cloud.jpg],
     "opacity": 0.3,
     "blur": 0,
     "interval": 0
