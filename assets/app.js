@@ -6,7 +6,7 @@
 
   var CONFIG = {
     tts: { enabled: false, api: '', voice: 'zh-CN', rate: 1, pitch: 1, headers: {} },
-    online: { enabled: false, provider: 'supabase', url: '', anonKey: '', channel: 'novel-site-presence' }
+    stats: { enabled: false }
   };
 
   var ttsErrorShown = false;
@@ -266,79 +266,26 @@
     });
   }
 
-  /* ---------- 在线人数 ---------- */
-  function getClientId() {
-    var id = null;
-    try { id = localStorage.getItem('ns-client-id'); } catch (e) {}
-    if (!id) {
-      id = 'c-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-      try { localStorage.setItem('ns-client-id', id); } catch (e) {}
-    }
-    return id;
-  }
-
-  function updateOnlineBadge(count) {
-    var badge = document.getElementById('online-badge');
-    if (!badge) return;
-    if (count && count > 0) {
-      badge.textContent = '👥 ' + count;
-      badge.style.display = '';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  function initOnline() {
-    var o = CONFIG.online;
-    if (!o || !o.enabled) return;
-    if (!o.url || !o.anonKey) {
-      console.warn('[Novel-Site] 在线统计已启用，但缺少 url 或 anonKey');
+  /* ---------- busuanzi 访问统计 ---------- */
+  function initStats() {
+    if (!CONFIG.stats || !CONFIG.stats.enabled) {
+      var uv = document.getElementById('busuanzi_container_site_uv');
+      var pv = document.getElementById('busuanzi_container_site_pv');
+      if (uv) uv.style.display = 'none';
+      if (pv) pv.style.display = 'none';
       return;
     }
 
+    if (window.__busuanziLoaded) return;
+    window.__busuanziLoaded = true;
+
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = connectPresence;
+    script.async = true;
+    script.src = 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js';
     script.onerror = function () {
-      console.warn('[Novel-Site] 加载 Supabase SDK 失败');
+      console.warn('[Novel-Site] 不蒜子脚本加载失败');
     };
-    document.head.appendChild(script);
-  }
-
-  function connectPresence() {
-    if (!window.supabase || !window.supabase.createClient) return;
-
-    try {
-      var client = window.supabase.createClient(CONFIG.online.url, CONFIG.online.anonKey);
-      var channel = client.channel(CONFIG.online.channel || 'novel-site-presence', {
-        config: { presence: { key: getClientId() } }
-      });
-
-      channel.on('presence', { event: 'sync' }, function () {
-        var state = channel.presenceState();
-        var count = 0;
-        for (var k in state) {
-          if (Object.prototype.hasOwnProperty.call(state, k)) {
-            count += state[k].length;
-          }
-        }
-        updateOnlineBadge(count);
-      });
-
-      channel.subscribe(function (status) {
-        if (status === 'SUBSCRIBED') {
-          channel.track({ online_at: new Date().toISOString() });
-        }
-      });
-
-      document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible') {
-          channel.track({ online_at: new Date().toISOString() });
-        }
-      });
-    } catch (e) {
-      console.warn('[Novel-Site] 在线统计初始化失败：', e);
-    }
+    document.body.appendChild(script);
   }
 
   /* ---------- 视图 ---------- */
@@ -556,12 +503,12 @@
     .then(function (cfg) {
       if (!cfg) return;
       if (cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
-      if (cfg.online) CONFIG.online = Object.assign(CONFIG.online, cfg.online);
+      if (cfg.stats) CONFIG.stats = Object.assign(CONFIG.stats, cfg.stats);
     })
     .catch(function () {})
     .then(function () {
       initTtsUI();
-      initOnline();
+      initStats();
       window.addEventListener('hashchange', route);
       route();
     });
