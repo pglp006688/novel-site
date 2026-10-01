@@ -6,5 +6,11 @@
     "rate": 1,
     "pitch": 1,
     "headers": {}
+  },
+  "utterances": {
+    "repo": "pglp006688/novel-site",
+    "label": "comment",
+    "theme": "github-light",
+    "themeDark": "github-dark"
   }
 }
