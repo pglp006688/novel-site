@@ -8,14 +8,23 @@
     tts: { enabled: false, api: '', voice: 'zh-CN', rate: 1, pitch: 1, headers: {} }
   };
 
+  var UTTERANCES = {
+    repo: '',
+    label: 'comment',
+    theme: 'github-light',
+    themeDark: 'github-dark'
+  };
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
   function safeDecode(s) {
     try { return decodeURIComponent(s); } catch (e) { return s; }
   }
+
   function findBook(slug) {
     if (!slug) return null;
     var d = safeDecode(slug);
@@ -26,21 +35,22 @@
     }
     return null;
   }
+
   function coverHTML(b, cls) {
     var initial = esc(String(b.title || '书').slice(0, 1));
-    if (!b.cover) return '<div class="' + cls + '"><span class="cover-initial">' + initial + '</span></div>';
+    if (!b.cover) {
+      return '<div class="' + cls + '"><span class="cover-initial">' + initial + '</span></div>';
+    }
     return '<div class="' + cls + '">' +
       '<img src="' + esc(b.cover) + '" alt="' + esc(b.title) + '" loading="lazy" ' +
       'onerror="this.style.display=\'none\';if(this.nextElementSibling)this.nextElementSibling.style.display=\'flex\';">' +
       '<span class="cover-initial" style="display:none">' + initial + '</span></div>';
   }
 
-  /* ---------- TTS ---------- */
   var TTS = {
     queue: [],
     index: 0,
     audio: null,
-    utterance: null,
     state: 'idle',
 
     split: function (container) {
@@ -139,7 +149,6 @@
       u.pitch = CONFIG.tts.pitch || 1;
       u.onend = function () { self.index++; self.play(); };
       u.onerror = function () { self.index++; self.play(); };
-      this.utterance = u;
       speechSynthesis.speak(u);
     },
 
@@ -160,7 +169,6 @@
     stop: function () {
       if (this.audio) { this.audio.pause(); this.audio = null; }
       if ('speechSynthesis' in window) speechSynthesis.cancel();
-      this.utterance = null;
       this.state = 'idle';
       this.index = 0;
       updateTtsBtn();
@@ -195,10 +203,56 @@
     });
   }
 
-  /* ---------- 视图 ---------- */
+  function loadUtterances(book, n) {
+    var box = document.getElementById('comments');
+    if (!box) return;
+    box.innerHTML = '';
+
+    if (!UTTERANCES.repo) {
+      box.innerHTML = '<p class="comments-hint">未配置评论仓库。</p>';
+      return;
+    }
+
+    var title = 'Novel-Site · ' + book.title + ' · 第' + n + '章 ' + (book.chapters[n - 1] || {}).title;
+
+    var theme = document.documentElement.getAttribute('data-theme') === 'dark'
+      ? UTTERANCES.themeDark : UTTERANCES.theme;
+
+    var script = document.createElement('script');
+    script.src = 'https://utteranc.es/client.js';
+    script.setAttribute('repo', UTTERANCES.repo);
+    script.setAttribute('issue-term', 'title');
+    script.setAttribute('label', UTTERANCES.label);
+    script.setAttribute('theme', theme);
+    script.setAttribute('crossorigin', 'anonymous');
+    script.async = true;
+    box.appendChild(script);
+
+    box.setAttribute('data-title', title);
+    box.setAttribute('data-url', location.origin + location.pathname +
+      '#/read/' + encodeURIComponent(book.slug) + '/' + n);
+
+    var original = window.utterances;
+    window.utterances = function (data) {
+      if (typeof original === 'function') original(data);
+      if (data && data.title) return { title: title };
+      return { title: title };
+    };
+  }
+
+  function syncUtterancesTheme() {
+    var iframe = document.querySelector('.utterances-frame');
+    if (!iframe || !iframe.contentWindow) return;
+    var theme = document.documentElement.getAttribute('data-theme') === 'dark'
+      ? UTTERANCES.themeDark : UTTERANCES.theme;
+    iframe.contentWindow.postMessage({ type: 'set-theme', theme: theme },
+      'https://utteranc.es');
+  }
+
   var vHome = document.getElementById('view-home');
   var vBook = document.getElementById('view-book');
   var vChapter = document.getElementById('view-chapter');
+
   function showView(n) {
     vHome.style.display = n === 'home' ? '' : 'none';
     vBook.style.display = n === 'book' ? '' : 'none';
@@ -214,7 +268,6 @@
     else renderHome();
   }
 
-  /* ---------- 首页 ---------- */
   var grid = document.getElementById('book-grid');
   var emptyTip = document.getElementById('empty-tip');
   var filterInput = document.getElementById('filter');
@@ -265,7 +318,6 @@
   filterInput.addEventListener('input', paintGrid);
   sortSelect.addEventListener('change', paintGrid);
 
-  /* ---------- 作品详情 ---------- */
   function renderBook(slug) {
     var b = findBook(slug);
     if (!b) { location.hash = ''; return; }
@@ -299,7 +351,6 @@
     }).join('');
   }
 
-  /* ---------- 阅读 ---------- */
   var readerState = { fontSize: 18, lineHeight: 2 };
   try {
     var saved = JSON.parse(localStorage.getItem('ns-reader') || 'null');
@@ -366,9 +417,10 @@
         slug: b.slug, n: n, title: c.title, book: b.title
       }));
     } catch (e) {}
+
+    loadUtterances(b, n);
   }
 
-  /* ---------- 阅读器控件 ---------- */
   document.getElementById('font-plus').addEventListener('click', function () {
     readerState.fontSize = Math.min(30, readerState.fontSize + 1);
     saveReader();
@@ -385,7 +437,6 @@
     applyReaderStyle();
   }
 
-  /* ---------- 键盘翻页 ---------- */
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toUpperCase();
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -395,7 +446,6 @@
     if (e.key === 'ArrowRight' && !links[1].classList.contains('disabled')) location.hash = links[1].getAttribute('href');
   });
 
-  /* ---------- 主题 ---------- */
   (function () {
     var root = document.documentElement;
     var t = null;
@@ -406,14 +456,16 @@
       var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       root.setAttribute('data-theme', next);
       try { localStorage.setItem('ns-theme', next); } catch (e) {}
+      setTimeout(syncUtterancesTheme, 100);
     });
   })();
 
-  /* ---------- 加载配置后启动 ---------- */
   fetch('config.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (cfg) {
-      if (cfg && cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
+      if (!cfg) return;
+      if (cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
+      if (cfg.utterances) UTTERANCES = Object.assign(UTTERANCES, cfg.utterances);
     })
     .catch(function () {})
     .then(function () {
