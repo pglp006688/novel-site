@@ -6,5 +6,8 @@
     "rate": 1,
     "pitch": 1,
     "headers": {}
+  },
+  "stats": {
+    "enabled": true
   }
 }
