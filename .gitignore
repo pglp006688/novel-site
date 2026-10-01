@@ -1,16 +1,14 @@
-# 构建产物
 /data.js
 /chapters/*/
 !/chapters/.gitkeep
+/novels/_out/
 
-# 系统
 .DS_Store
 Thumbs.db
 *.swp
 .idea/
 .vscode/
 
-# Python
 __pycache__/
 *.py[cod]
 .venv/
