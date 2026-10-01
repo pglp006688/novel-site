@@ -5,8 +5,11 @@
   var BOOKS = DATA.books || [];
 
   var CONFIG = {
-    tts: { enabled: false, api: '', voice: 'zh-CN', rate: 1, pitch: 1, headers: {} }
+    tts: { enabled: false, api: '', voice: 'zh-CN', rate: 1, pitch: 1, headers: {} },
+    online: { enabled: false, provider: 'supabase', url: '', anonKey: '', channel: 'novel-site-presence' }
   };
+
+  var ttsErrorShown = false;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -40,6 +43,23 @@
       '<span class="cover-initial" style="display:none">' + initial + '</span></div>';
   }
 
+  /* ---------- Toast ---------- */
+  function showToast(msg, type) {
+    var box = document.getElementById('toast-box');
+    if (!box) return;
+    var item = document.createElement('div');
+    item.className = 'toast' + (type ? ' toast-' + type : '');
+    item.textContent = msg;
+    box.appendChild(item);
+    setTimeout(function () {
+      item.classList.add('toast-hide');
+      setTimeout(function () {
+        if (item.parentNode) item.parentNode.removeChild(item);
+      }, 300);
+    }, 6000);
+  }
+
+  /* ---------- TTS ---------- */
   var TTS = {
     queue: [],
     index: 0,
@@ -98,13 +118,17 @@
           body: JSON.stringify({ text: text, voice: CONFIG.tts.voice, format: 'mp3' })
         })
           .then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (!r.ok) {
+              var err = new Error('HTTP ' + r.status);
+              err.status = r.status;
+              throw err;
+            }
             var ct = r.headers.get('content-type') || '';
             if (ct.indexOf('application/json') >= 0) {
               return r.json().then(function (d) {
                 if (d.url) return d.url;
                 if (d.audio) return 'data:audio/mpeg;base64,' + d.audio;
-                throw new Error('no audio');
+                throw new Error('返回数据里没有 url 或 audio 字段');
               });
             }
             return r.blob().then(function (b) { return URL.createObjectURL(b); });
@@ -118,12 +142,28 @@
               self.play();
             };
             audio.onerror = function () {
+              if (!ttsErrorShown) {
+                ttsErrorShown = true;
+                showToast('音频播放失败，已切换到浏览器语音', 'warn');
+              }
               self.index++;
               self.play();
             };
-            audio.play().catch(function () { self.speakBrowser(text); });
+            audio.play().catch(function () {
+              if (!ttsErrorShown) {
+                ttsErrorShown = true;
+                showToast('浏览器阻止了自动播放，请再次点击听书按钮', 'warn');
+              }
+              self.speakBrowser(text);
+            });
           })
-          .catch(function () { self.speakBrowser(text); });
+          .catch(function (err) {
+            if (!ttsErrorShown) {
+              ttsErrorShown = true;
+              showToast(formatTtsError(err), 'error');
+            }
+            self.speakBrowser(text);
+          });
       } else {
         this.speakBrowser(text);
       }
@@ -131,6 +171,10 @@
 
     speakBrowser: function (text) {
       if (!('speechSynthesis' in window)) {
+        if (!ttsErrorShown) {
+          ttsErrorShown = true;
+          showToast('当前浏览器不支持语音合成', 'error');
+        }
         this.index++;
         this.play();
         return;
@@ -141,7 +185,14 @@
       u.rate = CONFIG.tts.rate || 1;
       u.pitch = CONFIG.tts.pitch || 1;
       u.onend = function () { self.index++; self.play(); };
-      u.onerror = function () { self.index++; self.play(); };
+      u.onerror = function (e) {
+        if (e.error === 'not-allowed' && !ttsErrorShown) {
+          ttsErrorShown = true;
+          showToast('浏览器禁止语音合成，请先与页面交互', 'warn');
+        }
+        self.index++;
+        self.play();
+      };
       speechSynthesis.speak(u);
     },
 
@@ -167,6 +218,25 @@
       updateTtsBtn();
     }
   };
+
+  function formatTtsError(err) {
+    var msg = '远程 TTS 失败';
+    if (err && err.status === 401) {
+      msg += '（401 未授权，检查 config.json 里的 headers）';
+    } else if (err && err.status === 403) {
+      msg += '（403 拒绝访问，检查 API Key 权限）';
+    } else if (err && err.status >= 500) {
+      msg += '（服务器错误 ' + err.status + '）';
+    } else if (err && err.status === 404) {
+      msg += '（404，API 地址可能写错了）';
+    } else if (err && err.message && err.message.indexOf('Failed to fetch') >= 0) {
+      msg += '（网络错误或跨域被拦截）';
+    } else if (err && err.message) {
+      msg += '：' + err.message;
+    }
+    msg += '，已切换到浏览器语音';
+    return msg;
+  }
 
   function updateTtsBtn() {
     var btn = document.getElementById('tts-toggle');
@@ -196,6 +266,82 @@
     });
   }
 
+  /* ---------- 在线人数 ---------- */
+  function getClientId() {
+    var id = null;
+    try { id = localStorage.getItem('ns-client-id'); } catch (e) {}
+    if (!id) {
+      id = 'c-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      try { localStorage.setItem('ns-client-id', id); } catch (e) {}
+    }
+    return id;
+  }
+
+  function updateOnlineBadge(count) {
+    var badge = document.getElementById('online-badge');
+    if (!badge) return;
+    if (count && count > 0) {
+      badge.textContent = '👥 ' + count;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  function initOnline() {
+    var o = CONFIG.online;
+    if (!o || !o.enabled) return;
+    if (!o.url || !o.anonKey) {
+      console.warn('[Novel-Site] 在线统计已启用，但缺少 url 或 anonKey');
+      return;
+    }
+
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.onload = connectPresence;
+    script.onerror = function () {
+      console.warn('[Novel-Site] 加载 Supabase SDK 失败');
+    };
+    document.head.appendChild(script);
+  }
+
+  function connectPresence() {
+    if (!window.supabase || !window.supabase.createClient) return;
+
+    try {
+      var client = window.supabase.createClient(CONFIG.online.url, CONFIG.online.anonKey);
+      var channel = client.channel(CONFIG.online.channel || 'novel-site-presence', {
+        config: { presence: { key: getClientId() } }
+      });
+
+      channel.on('presence', { event: 'sync' }, function () {
+        var state = channel.presenceState();
+        var count = 0;
+        for (var k in state) {
+          if (Object.prototype.hasOwnProperty.call(state, k)) {
+            count += state[k].length;
+          }
+        }
+        updateOnlineBadge(count);
+      });
+
+      channel.subscribe(function (status) {
+        if (status === 'SUBSCRIBED') {
+          channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+          channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+    } catch (e) {
+      console.warn('[Novel-Site] 在线统计初始化失败：', e);
+    }
+  }
+
+  /* ---------- 视图 ---------- */
   var vHome = document.getElementById('view-home');
   var vBook = document.getElementById('view-book');
   var vChapter = document.getElementById('view-chapter');
@@ -313,6 +459,7 @@
 
   function renderChapter(slug, n) {
     TTS.stop();
+    ttsErrorShown = false;
 
     var b = findBook(slug);
     if (!b) { location.hash = ''; return; }
@@ -407,11 +554,14 @@
   fetch('config.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (cfg) {
-      if (cfg && cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
+      if (!cfg) return;
+      if (cfg.tts) CONFIG.tts = Object.assign(CONFIG.tts, cfg.tts);
+      if (cfg.online) CONFIG.online = Object.assign(CONFIG.online, cfg.online);
     })
     .catch(function () {})
     .then(function () {
       initTtsUI();
+      initOnline();
       window.addEventListener('hashchange', route);
       route();
     });
